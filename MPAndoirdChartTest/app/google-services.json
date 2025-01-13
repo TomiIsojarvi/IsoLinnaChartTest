@@ -1,0 +1,68 @@
+{
+  "project_info": {
+    "project_number": "205115636909",
+    "firebase_url": "https://isolinna-default-rtdb.firebaseio.com",
+    "project_id": "isolinna",
+    "storage_bucket": "isolinna.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:205115636909:android:1ef2dfdf0ea618dbb29a24",
+        "android_client_info": {
+          "package_name": "com.example.isolinna"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAaERUXwhvcLKxT5Fu6AA5CxvySzgh_l8s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:205115636909:android:c774db5925422615b29a24",
+        "android_client_info": {
+          "package_name": "com.example.isolinna2"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAaERUXwhvcLKxT5Fu6AA5CxvySzgh_l8s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:205115636909:android:1f743c379d0352b8b29a24",
+        "android_client_info": {
+          "package_name": "com.example.mpandoirdcharttest"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAaERUXwhvcLKxT5Fu6AA5CxvySzgh_l8s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
