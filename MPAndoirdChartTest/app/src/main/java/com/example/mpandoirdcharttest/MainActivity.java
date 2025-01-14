@@ -17,12 +17,14 @@ import androidx.core.view.WindowInsetsCompat;
 //import com.example.mpandoirdcharttest.firebase.model.Information;
 import com.github.mikephil.charting.charts.BarChart;
 import com.github.mikephil.charting.charts.LineChart;
+import com.github.mikephil.charting.components.XAxis;
 import com.github.mikephil.charting.data.BarData;
 import com.github.mikephil.charting.data.BarDataSet;
 import com.github.mikephil.charting.data.BarEntry;
 import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.data.LineData;
 import com.github.mikephil.charting.data.LineDataSet;
+import com.github.mikephil.charting.formatter.ValueFormatter;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.firebase.auth.AuthResult;
@@ -33,8 +35,12 @@ import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
+import java.util.Locale;
 import java.util.Objects;
+import java.util.TimeZone;
 
 class Information {
     public Double temperature, pressure, humidity, rssi, battery;
@@ -47,8 +53,11 @@ public class MainActivity extends AppCompatActivity {
     ArrayList<Information> list;
     private BarChart barChart;
     private LineChart tempLineChart;
+    private XAxis tempXAxis;
     private LineChart humLineChart;
+    private XAxis humXAxis;
     private LineChart pressLineChart;
+    private XAxis pressXAxis;
 
 
     private void createCharts() {
@@ -60,6 +69,46 @@ public class MainActivity extends AppCompatActivity {
         ArrayList<Entry> tempLineEntries = new ArrayList<>();
         ArrayList<Entry> humLineEntries = new ArrayList<>();
         ArrayList<Entry> pressLineEntries = new ArrayList<>();
+
+        ArrayList<String> formattedDates = new ArrayList<>();
+        SimpleDateFormat utcFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.getDefault());
+        utcFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
+        SimpleDateFormat localFormat = new SimpleDateFormat("dd.MM.yyyy HH.mm.ss", Locale.getDefault());
+        localFormat.setTimeZone(TimeZone.getDefault());
+
+        ValueFormatter dateFormatter = new ValueFormatter() {
+            @Override
+            public String getFormattedValue(float value) {
+                int index = (int) value;
+                if (index >= 0 && index < formattedDates.size()) {
+                    return formattedDates.get(index);
+                } else {
+                    return "";
+                }
+            }
+        };
+
+        tempXAxis = tempLineChart.getXAxis();
+        tempXAxis.setValueFormatter(dateFormatter);
+        tempXAxis.setGranularity(1f); // Ensure labels correspond to entries
+        tempXAxis.setPosition(XAxis.XAxisPosition.BOTTOM);
+        humXAxis = humLineChart.getXAxis();
+        humXAxis.setValueFormatter(dateFormatter);
+        humXAxis.setGranularity(1f); // Ensure labels correspond to entries
+        humXAxis.setPosition(XAxis.XAxisPosition.BOTTOM);
+        pressXAxis = pressLineChart.getXAxis();
+        pressXAxis.setValueFormatter(dateFormatter);
+        pressXAxis.setGranularity(1f); // Ensure labels correspond to entries
+        pressXAxis.setPosition(XAxis.XAxisPosition.BOTTOM);
+
+        for (Information sensor : list) {
+            try {
+                Date date = utcFormat.parse(sensor.utc_timestamp);
+                formattedDates.add(localFormat.format(date));
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
 
         float i = 0;
         for (Information sensor : list) {
