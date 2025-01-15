@@ -215,20 +215,32 @@ public class MainActivity extends AppCompatActivity {
         LineDataSet tempLineDataSet = new LineDataSet(tempLineEntries, "Temperature");
         tempLineDataSet.setColor(Color.RED);
         tempLineDataSet.setDrawCircles(false);
+        tempLineDataSet.setDrawFilled(true);
+        tempLineDataSet.setFillColor(Color.argb(80, 255, 0, 0));
         LineData tempLineData = new LineData(tempLineDataSet);
 
         LineDataSet humLineDataSet = new LineDataSet(humLineEntries, "Humidity");
         humLineDataSet.setColor(Color.BLUE);
         humLineDataSet.setDrawCircles(false);
+        humLineDataSet.setDrawFilled(true);
+        humLineDataSet.setFillColor(Color.argb(80, 0, 0, 255));
         LineData humLineData = new LineData(humLineDataSet);
 
         LineDataSet pressLineDataSet = new LineDataSet(pressLineEntries, "Pressure");
         pressLineDataSet.setColor(Color.GREEN);
         pressLineDataSet.setDrawCircles(false);
+        pressLineDataSet.setDrawFilled(true);
+        pressLineDataSet.setFillColor(Color.argb(80, 0, 255, 0));
         LineData pressLineData = new LineData(pressLineDataSet);
 
+        tempLineChart.getLegend().setEnabled(false);
+        tempLineChart.getDescription().setEnabled(false);
         tempLineChart.setData(tempLineData);
+        humLineChart.getLegend().setEnabled(false);
+        humLineChart.getDescription().setEnabled(false);
         humLineChart.setData(humLineData);
+        pressLineChart.getLegend().setEnabled(false);
+        pressLineChart.getDescription().setEnabled(false);
         pressLineChart.setData(pressLineData);
 
         // Disable the right Y-axis
