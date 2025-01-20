@@ -118,12 +118,12 @@ public class MainActivity extends AppCompatActivity {
     private final String userUid = "Zu3AC6ctgue483lGhSwS49VXspt2";
 
     // Stored sensor info and dates
-    ArrayList<SensorInfo> sensorData;
-    ArrayList<Date> dates;
+    private ArrayList<SensorInfo> sensorData;
+    private ArrayList<Date> dates;
 
     // Date and time formatters
-    java.text.DateFormat dateFormatter;
-    java.text.DateFormat timeFormatter;
+    private java.text.DateFormat dateFormatter;
+    private java.text.DateFormat timeFormatter;
 
     // Charts
     private LineChart tempLineChart;
