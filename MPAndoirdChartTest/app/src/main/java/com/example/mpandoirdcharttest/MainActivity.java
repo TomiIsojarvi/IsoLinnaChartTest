@@ -1,7 +1,5 @@
 package com.example.mpandoirdcharttest;
 
-import java.text.DateFormat;
-
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Color;
@@ -18,12 +16,10 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
-import com.github.mikephil.charting.charts.BarChart;
 import com.github.mikephil.charting.charts.Chart;
 import com.github.mikephil.charting.charts.LineChart;
 import com.github.mikephil.charting.components.MarkerView;
 import com.github.mikephil.charting.components.XAxis;
-import com.github.mikephil.charting.components.YAxis;
 import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.data.LineData;
 import com.github.mikephil.charting.data.LineDataSet;
@@ -46,60 +42,58 @@ import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 
 import java.text.SimpleDateFormat;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
-import java.util.Objects;
 import java.util.TimeZone;
 
 //-------------------------------------------------------------------------------------------------
-// SensorInfo -
+// SensorInfo - Used for storing sensor data
+// (Tämä on jo projektissa mukana. Luokan ja tiedoston nimi pitää muuttaa projektissa Information:sta SensorInfo:ksi ja refactoroida)
 //-------------------------------------------------------------------------------------------------
 class SensorInfo {
     public Double temperature, pressure, humidity, rssi, battery;
     public String utc_timestamp, mac;
 }
 
-//-------------------------------------------------------------------------------------------------
-// CustomMarkerView -
-//-------------------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------------------------//
+// CustomMarkerView -                                                                            //
+//-----------------------------------------------------------------------------------------------//
 class CustomMarkerView extends MarkerView {
     private final TextView tvContent;
     private final TextView tvDate;
     private final TextView tvTime;
     private ArrayList<Date> datesList;
     private String printedUnit;
+    java.text.DateFormat dateFormatter;
+    java.text.DateFormat timeFormatter;
 
-    public CustomMarkerView(Context context, int layoutResource, ArrayList<Date> dates, String unit) {
+    //---------------------------------------------------------------------------------------------
+    // Constructor
+    //---------------------------------------------------------------------------------------------
+    public CustomMarkerView(
+            Context context, int layoutResource, ArrayList<Date> dates, String unit,
+            java.text.DateFormat dateFormat, java.text.DateFormat timeFormat
+    ) {
         super(context, layoutResource);
-        tvContent = findViewById(R.id.tvContent); // TextView in the marker layout
+        tvContent = findViewById(R.id.tvContent);
         tvDate = findViewById(R.id.tvDate);
         tvTime = findViewById(R.id.tvTime);
         datesList = dates;
         printedUnit = unit;
+        dateFormatter = dateFormat;
+        timeFormatter = timeFormat;
     }
 
     @Override
     public void refreshContent(Entry e, Highlight highlight) {
         tvContent.setText(String.format(Locale.getDefault(), "%.2f", e.getY()) + " " + printedUnit);
-        if (datesList != null) {
+        if (datesList != null && dateFormatter != null && timeFormatter != null) {
             Date currentDate = datesList.get((int)e.getX());
-            DateFormat shortDateFormat = DateFormat.getDateInstance(DateFormat.SHORT);
-            String shortPattern = ((SimpleDateFormat) shortDateFormat).toLocalizedPattern();
-            DateFormat shorterDateFormat = new SimpleDateFormat(shortPattern, Locale.getDefault());
-            // Format the Instant as a String
-            String shorterString = shorterDateFormat.format(currentDate);
-            tvDate.setText(shorterString);
 
-            DateFormat timeFormat = android.text.format.DateFormat.getTimeFormat(tvDate.getContext());
-            String localTime = timeFormat.format(currentDate);
-
-            tvTime.setText(localTime);
+            tvDate.setText(dateFormatter.format(currentDate));
+            tvTime.setText(timeFormatter.format(currentDate));
         }
 
         super.refreshContent(e, highlight);
@@ -111,44 +105,117 @@ class CustomMarkerView extends MarkerView {
     }
 }
 
-//-------------------------------------------------------------------------------------------------
-// MainActivity - MainActivity-class
-//-------------------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------------------------//
+// MainActivity - Main Activity                                                                  //
+//-----------------------------------------------------------------------------------------------//
 public class MainActivity extends AppCompatActivity {
+    // Firebase Realtime Database related
     private DatabaseReference database;
+
+    // Nämä arvot pitää tulla kutsuvalta Activitylta ja final pitää poistaa...
     private final String deviceUuid = "7bfbe8a2-c91f-11ef-ab2e-b827ebd88bf2";
     private final String macAddress = "CD:19:C7:AF:16:2B";
+    private final String userUid = "Zu3AC6ctgue483lGhSwS49VXspt2";
 
+    // Stored sensor info and dates
     ArrayList<SensorInfo> sensorData;
     ArrayList<Date> dates;
 
+    // Date and time formatters
+    java.text.DateFormat dateFormatter;
+    java.text.DateFormat timeFormatter;
+
+    // Charts
     private LineChart tempLineChart;
     private XAxis tempXAxis;
     private LineChart humLineChart;
     private XAxis humXAxis;
     private LineChart pressLineChart;
     private XAxis pressXAxis;
-    DateFormat dateFormat;
-    DateFormat timeFormat;
 
+    // Used for syncing markers
     private boolean isSyncing = false;
 
+    //---------------------------------------------------------------------------------------------
+    // convertUtcToDate - Converts UTC timestamp from String to Date-object
+    //---------------------------------------------------------------------------------------------
     private Date convertUtcToDate(String utcTimestamp) {
         try {
             // Define the UTC time format
-            SimpleDateFormat utcFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.getDefault());
+            SimpleDateFormat utcFormat =
+                    new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.getDefault());
             utcFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
 
             // Parse the input UTC timestamp and return it
             return utcFormat.parse(utcTimestamp);
         } catch (Exception e) {
-            e.printStackTrace();
+            // Return current Date if an error...
             return new Date();
         }
     }
 
+    //---------------------------------------------------------------------------------------------
+    // syncCharts - Used for synchronizing the charts' gestures
+    //---------------------------------------------------------------------------------------------
+    private void syncCharts(Chart<?> sourceChart, Chart<?>... targetCharts) {
+        sourceChart.setOnChartGestureListener(new OnChartGestureListener() {
+
+            // Not used ---------------------------------------------------------------------------
+            @Override
+            public void onChartGestureStart(
+                    MotionEvent me, ChartTouchListener.ChartGesture lastPerformedGesture
+            ) {}
+            @Override
+            public void onChartGestureEnd(
+                    MotionEvent me, ChartTouchListener.ChartGesture lastPerformedGesture
+            ) {}
+            @Override
+            public void onChartLongPressed(MotionEvent me) {}
+            @Override
+            public void onChartDoubleTapped(MotionEvent me) {}
+            @Override
+            public void onChartSingleTapped(MotionEvent me) {}
+            @Override
+            public void onChartFling(
+                    MotionEvent me1, MotionEvent me2, float velocityX, float velocityY
+            ) {}
+            // ------------------------------------------------------------------------------------
+
+            // Scaling ----------------------------------------------------------------------------
+            @Override
+            public void onChartScale(MotionEvent me, float scaleX, float scaleY) {
+                for (Chart<?> targetChart : targetCharts) {
+                    targetChart.getViewPortHandler().refresh(
+                            sourceChart.getViewPortHandler().getMatrixTouch(),
+                            targetChart,
+                            true
+                    );
+                }
+            }
+            // ------------------------------------------------------------------------------------
+
+            // Translation ------------------------------------------------------------------------
+            @Override
+            public void onChartTranslate(MotionEvent me, float dX, float dY) {
+                for (Chart<?> targetChart : targetCharts) {
+                    targetChart.getViewPortHandler().refresh(
+                            sourceChart.getViewPortHandler().getMatrixTouch(),
+                            targetChart,
+                            true
+                    );
+                }
+            }
+            // ------------------------------------------------------------------------------------
+        });
+    }
+
+    //---------------------------------------------------------------------------------------------
+    // syncMarkers - Used for synchronizing the charts' markers
+    //---------------------------------------------------------------------------------------------
     private void syncMarkers(LineChart sourceChart, LineChart... targetCharts) {
         sourceChart.setOnChartValueSelectedListener(new OnChartValueSelectedListener() {
+
+            // Value selected ---------------------------------------------------------------------
             @Override
             public void onValueSelected(Entry e, Highlight h) {
                 if (isSyncing) return; // Avoid recursive calls
@@ -164,7 +231,9 @@ public class MainActivity extends AppCompatActivity {
                     isSyncing = false; // Reset the flag
                 }
             }
+            // ------------------------------------------------------------------------------------
 
+            // Nothing selected -------------------------------------------------------------------
             @Override
             public void onNothingSelected() {
                 if (isSyncing) return;
@@ -178,160 +247,82 @@ public class MainActivity extends AppCompatActivity {
                     isSyncing = false;
                 }
             }
+            // ------------------------------------------------------------------------------------
         });
     }
 
-
-    private void syncCharts(Chart<?> sourceChart, Chart<?>... targetCharts) {
-
-        sourceChart.setOnChartGestureListener(new OnChartGestureListener() {
-            @Override
-            public void onChartGestureStart(MotionEvent me, ChartTouchListener.ChartGesture lastPerformedGesture) {}
-
-            @Override
-            public void onChartGestureEnd(MotionEvent me, ChartTouchListener.ChartGesture lastPerformedGesture) {}
-
-            @Override
-            public void onChartLongPressed(MotionEvent me) {}
-
-            @Override
-            public void onChartDoubleTapped(MotionEvent me) {}
-
-            @Override
-            public void onChartSingleTapped(MotionEvent me) {}
-
-            @Override
-            public void onChartFling(MotionEvent me1, MotionEvent me2, float velocityX, float velocityY) {}
-
-            @Override
-            public void onChartScale(MotionEvent me, float scaleX, float scaleY) {
-                for (Chart<?> targetChart : targetCharts) {
-                    targetChart.getViewPortHandler().refresh(
-                            sourceChart.getViewPortHandler().getMatrixTouch(),
-                            targetChart,
-                            true
-                    );
-                }
-            }
-
-            @Override
-            public void onChartTranslate(MotionEvent me, float dX, float dY) {
-                for (Chart<?> targetChart : targetCharts) {
-                    targetChart.getViewPortHandler().refresh(
-                            sourceChart.getViewPortHandler().getMatrixTouch(),
-                            targetChart,
-                            true
-                    );
-                }
-            }
-        });
-    }
-
+    //---------------------------------------------------------------------------------------------
+    // setUniformYAxisWidth - Makes left Y-axes to be same width
+    //---------------------------------------------------------------------------------------------
     private void setUniformYAxisWidth() {
         float maxLabelWidth = 0;
 
         // Measure the widest label width across all charts
-        String widestLabel = "9,999"; // Give some value for the pressure...
+        String widestLabel = "X.XXX";   // Give some example for the widest label
         Paint paint = new Paint();
         paint.setTextSize(tempLineChart.getAxisLeft().getTextSize()); // Use the same text size
         maxLabelWidth = paint.measureText(widestLabel);
 
         // Set the width of the left axis for all charts
-        YAxis tempYAxis = tempLineChart.getAxisLeft();
-        YAxis humYAxis = humLineChart.getAxisLeft();
-        YAxis pressYAxis = pressLineChart.getAxisLeft();
-
-        tempYAxis.setMinWidth((int) maxLabelWidth);
-        humYAxis.setMinWidth((int) maxLabelWidth);
-        pressYAxis.setMinWidth((int) maxLabelWidth);
+        tempLineChart.getAxisLeft().setMinWidth((int) maxLabelWidth);
+        humLineChart.getAxisLeft().setMinWidth((int) maxLabelWidth);
+        pressLineChart.getAxisLeft().setMinWidth((int) maxLabelWidth);
     }
 
     //---------------------------------------------------------------------------------------------
-    // initCharts -
+    // initAxes - Initialize the chart axes
     //---------------------------------------------------------------------------------------------
-    private void initCharts() {
-        tempLineChart = findViewById(R.id.TemplineChart);
-        humLineChart = findViewById(R.id.HumlineChart);
-        pressLineChart = findViewById(R.id.PresslineChart);
-
-
-        tempLineChart.getLegend().setEnabled(false);
-        tempLineChart.getDescription().setEnabled(false);
-        tempLineChart.getAxisRight().setEnabled(false);
-
-        humLineChart.getLegend().setEnabled(false);
-        humLineChart.getDescription().setEnabled(false);
-        humLineChart.getAxisRight().setEnabled(false);
-
-        pressLineChart.getLegend().setEnabled(false);
-        pressLineChart.getDescription().setEnabled(false);
-        pressLineChart.getAxisRight().setEnabled(false);
-
-        syncCharts(tempLineChart, humLineChart, pressLineChart);
-        syncCharts(humLineChart, tempLineChart, pressLineChart);
-        syncCharts(pressLineChart, tempLineChart, humLineChart);
-
+    private void initAxes() {
+        // Temperature
         tempXAxis = tempLineChart.getXAxis();
         tempXAxis.setAvoidFirstLastClipping(true);
         tempXAxis.setGranularity(1f);
         tempXAxis.setGranularityEnabled(true);
         tempXAxis.setPosition(XAxis.XAxisPosition.BOTTOM);
 
-        humXAxis = tempLineChart.getXAxis();
+        // Humidity
+        humXAxis = humLineChart.getXAxis();
         humXAxis.setAvoidFirstLastClipping(true);
         humXAxis.setGranularity(1f);
         humXAxis.setGranularityEnabled(true);
         humXAxis.setPosition(XAxis.XAxisPosition.BOTTOM);
 
-        pressXAxis = tempLineChart.getXAxis();
+        // Pressure
+        pressXAxis = pressLineChart.getXAxis();
         pressXAxis.setAvoidFirstLastClipping(true);
         pressXAxis.setGranularity(1f);
         pressXAxis.setGranularityEnabled(true);
         pressXAxis.setPosition(XAxis.XAxisPosition.BOTTOM);
 
+        // Make the Y-axis same width
         setUniformYAxisWidth();
 
-        CustomMarkerView markerView;
-
-        markerView = new CustomMarkerView(this, R.layout.marker_view, dates, "°C");
-        //markerView.setChartView(tempLineChart);
-        markerView.setChartView(tempLineChart);
-        tempLineChart.setMarker(markerView);
-
-        markerView = new CustomMarkerView(this, R.layout.marker_view, dates, "%");
-        markerView.setChartView(humLineChart);
-        humLineChart.setMarker(markerView);
-
-        markerView = new CustomMarkerView(this, R.layout.marker_view, dates, "hPa");
-        markerView.setChartView(pressLineChart);
-        pressLineChart.setMarker(markerView);
-
-        syncMarkers(tempLineChart, humLineChart, pressLineChart);
-        syncMarkers(humLineChart, tempLineChart, pressLineChart);
-        syncMarkers(pressLineChart, tempLineChart, humLineChart);
-
+        // Value Formatter for the dates ----------------------------------------------------------
         ValueFormatter dateFormatter = new ValueFormatter() {
-            private Date previousDate = null; // Track the previous instant
+            private Date previousDate = null; // Track the previous date
 
+            // Get Formatted Value ----------------------------------------------------------------
             @Override
             public String getFormattedValue(float value) {
                 int index = (int) value;
                 if (index >= 0 && index < dates.size()) {
                     Date currentDate = dates.get(index);
 
-                    // Get the formatted date and time in the phone's local format
-                    String formattedTime = android.text.format.DateFormat.getTimeFormat(MainActivity.this).format(currentDate);
-                    DateFormat shortDateFormat = DateFormat.getDateInstance(DateFormat.SHORT);
-                    String shortPattern = ((SimpleDateFormat) shortDateFormat).toLocalizedPattern();
-                    String shorterPattern = shortPattern.replaceAll("[/\\- ]*[yY]+[^a-zA-Z]*", "");
-                    DateFormat shorterDateFormat = new SimpleDateFormat(shorterPattern, Locale.getDefault());
+                    // Get formatted time
+                    String formattedTime = timeFormatter.format(currentDate);
 
+                    // Get formatted date in Day/Month
+                    String dayMonthPattern = android.text.format.DateFormat
+                            .getBestDateTimePattern(Locale.getDefault(), "Md");
+                    SimpleDateFormat dayMonthFormat =
+                            new SimpleDateFormat(dayMonthPattern, Locale.getDefault());
+                    String formattedDate = dayMonthFormat.format(currentDate);
 
                     // Check if the day has changed
                     if (previousDate != null && !isSameDay(previousDate, currentDate)) {
                         // Show date without year (only day and month)
                         previousDate = currentDate;
-                        return shorterDateFormat.format(currentDate);
+                        return formattedDate;
                     } else {
                         // Show only time
                         previousDate = currentDate;
@@ -341,8 +332,9 @@ public class MainActivity extends AppCompatActivity {
                     return "";
                 }
             }
+            // ------------------------------------------------------------------------------------
 
-            // Helper method to check if two Instants are on the same day
+            // Helper method to check if two Dates are on the same day ----------------------------
             private boolean isSameDay(Date date1, Date date2) {
                 Calendar cal1 = Calendar.getInstance();
                 Calendar cal2 = Calendar.getInstance();
@@ -352,20 +344,85 @@ public class MainActivity extends AppCompatActivity {
                         cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR);
             }
         };
+        // ----------------------------------------------------------------------------------------
 
+        // Attach the value formatter to X-axes
         tempXAxis.setValueFormatter(dateFormatter);
         humXAxis.setValueFormatter(dateFormatter);
         pressXAxis.setValueFormatter(dateFormatter);
     }
 
     //---------------------------------------------------------------------------------------------
-    // drawCharts -
+    // initCharts - Initialize the charts
+    //---------------------------------------------------------------------------------------------
+    private void initCharts() {
+        tempLineChart = findViewById(R.id.TemplineChart);
+        humLineChart = findViewById(R.id.HumlineChart);
+        pressLineChart = findViewById(R.id.PresslineChart);
+
+        // Temperature
+        tempLineChart.getLegend().setEnabled(false);
+        tempLineChart.getDescription().setEnabled(false);
+        tempLineChart.getAxisRight().setEnabled(false);
+
+        // Humidity
+        humLineChart.getLegend().setEnabled(false);
+        humLineChart.getDescription().setEnabled(false);
+        humLineChart.getAxisRight().setEnabled(false);
+
+        // Pressure
+        pressLineChart.getLegend().setEnabled(false);
+        pressLineChart.getDescription().setEnabled(false);
+        pressLineChart.getAxisRight().setEnabled(false);
+
+        // Synchronize the charts
+        syncCharts(tempLineChart, humLineChart, pressLineChart);
+        syncCharts(humLineChart, tempLineChart, pressLineChart);
+        syncCharts(pressLineChart, tempLineChart, humLineChart);
+
+        // Initialize the axes
+        initAxes();
+
+        // Set up the Markers ---------------------------------------------------------------------
+        CustomMarkerView markerView;
+
+        // Temperature
+        markerView = new CustomMarkerView(
+                this, R.layout.marker_view, dates, "°C", dateFormatter, timeFormatter
+        );
+        markerView.setChartView(tempLineChart);
+        tempLineChart.setMarker(markerView);
+
+        // Humidity
+        markerView = new CustomMarkerView(
+                this, R.layout.marker_view, dates, "%", dateFormatter, timeFormatter
+        );
+        markerView.setChartView(humLineChart);
+        humLineChart.setMarker(markerView);
+
+        // Pressure
+        markerView = new CustomMarkerView(
+                this, R.layout.marker_view, dates, "hPa", dateFormatter, timeFormatter
+        );
+        markerView.setChartView(pressLineChart);
+        pressLineChart.setMarker(markerView);
+
+        // Synchronize the markers
+        syncMarkers(tempLineChart, humLineChart, pressLineChart);
+        syncMarkers(humLineChart, tempLineChart, pressLineChart);
+        syncMarkers(pressLineChart, tempLineChart, humLineChart);
+        // ----------------------------------------------------------------------------------------
+    }
+
+    //---------------------------------------------------------------------------------------------
+    // drawCharts - Draw the charts
     //---------------------------------------------------------------------------------------------
     private void drawCharts() {
         ArrayList<Entry> tempLineEntries = new ArrayList<>();
         ArrayList<Entry> humLineEntries = new ArrayList<>();
         ArrayList<Entry> pressLineEntries = new ArrayList<>();
 
+        // Initialise the Data Entries
         float i = 0;
         for (SensorInfo sensor : sensorData) {
             tempLineEntries.add(new Entry(i, sensor.temperature.floatValue()));
@@ -374,6 +431,7 @@ public class MainActivity extends AppCompatActivity {
             i++;
         }
 
+        // Initialise the Temperature Line Data
         LineDataSet tempLineDataSet = new LineDataSet(tempLineEntries, "Temperature");
         tempLineDataSet.setColor(Color.RED);
         tempLineDataSet.setDrawCircles(false);
@@ -382,6 +440,7 @@ public class MainActivity extends AppCompatActivity {
         tempLineDataSet.setFillColor(Color.argb(80, 255, 0, 0));
         LineData tempLineData = new LineData(tempLineDataSet);
 
+        // Initialise the Humidity Line Data
         LineDataSet humLineDataSet = new LineDataSet(humLineEntries, "Humidity");
         humLineDataSet.setColor(Color.BLUE);
         humLineDataSet.setDrawCircles(false);
@@ -390,6 +449,7 @@ public class MainActivity extends AppCompatActivity {
         humLineDataSet.setFillColor(Color.argb(80, 0, 0, 255));
         LineData humLineData = new LineData(humLineDataSet);
 
+        // Initialise the Pressure Line Data
         LineDataSet pressLineDataSet = new LineDataSet(pressLineEntries, "Pressure");
         pressLineDataSet.setColor(Color.rgb(0, 100, 0));
         pressLineDataSet.setDrawCircles(false);
@@ -398,10 +458,12 @@ public class MainActivity extends AppCompatActivity {
         pressLineDataSet.setFillColor(Color.argb(80, 0, 100, 0));
         LineData pressLineData = new LineData(pressLineDataSet);
 
+        // Attach line data to charts
         tempLineChart.setData(tempLineData);
         humLineChart.setData(humLineData);
         pressLineChart.setData(pressLineData);
 
+        // Invalidate
         tempLineChart.invalidate();
         humLineChart.invalidate();
         pressLineChart.invalidate();
@@ -414,11 +476,11 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        // Initialize date and time formatters to use device's date formats
+        timeFormatter = android.text.format.DateFormat.getTimeFormat(this);
+        dateFormatter = android.text.format.DateFormat.getDateFormat(this);
+
         FirebaseAuth auth;
-
-        dateFormat = android.text.format.DateFormat.getDateFormat(this);
-        timeFormat = android.text.format.DateFormat.getTimeFormat(this);
-
         sensorData = new ArrayList<>();
         dates = new ArrayList<>();
 
@@ -449,15 +511,15 @@ public class MainActivity extends AppCompatActivity {
                         // Get the current user
                         FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
 
-                        // Has current user be found?
+                        // Is current user to be found?
                         if (currentUser != null) {
                             // Yes...
 
                             // Get the UserUID
-                            String userUid = currentUser.getUid();
+                            //String userUid = currentUser.getUid();
 
                             // Firebase Realtime Database Related ---------------------------------
-                            // Initialize database reference.
+                            // Initialize database reference
                             database = FirebaseDatabase.getInstance().getReference("users")
                                     .child(userUid).child("devices").child(deviceUuid)
                                     .child(macAddress);
@@ -466,7 +528,7 @@ public class MainActivity extends AppCompatActivity {
                             database.addValueEventListener(new ValueEventListener() {
                                 @SuppressLint("NotifyDataSetChanged")
 
-                                // If data has been changed...
+                                // If sensor data has been changed...
                                 @Override
                                 public void onDataChange(@NonNull DataSnapshot snapshot) {
                                     sensorData.clear();
