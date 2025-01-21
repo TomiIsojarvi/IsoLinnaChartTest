@@ -1,6 +1,5 @@
 package com.example.mpandoirdcharttest;
 
-import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -263,7 +262,7 @@ public class MainActivity extends AppCompatActivity {
         float maxLabelWidth;
 
         // Measure the widest label width across all charts
-        String widestLabel = "X.XXX";   // Give some example for the widest label
+        String widestLabel = "X.X";   // Give some example for the widest label
         Paint paint = new Paint();
         paint.setTextSize(tempLineChart.getAxisLeft().getTextSize()); // Use the same text size
         maxLabelWidth = paint.measureText(widestLabel);
@@ -508,7 +507,8 @@ public class MainActivity extends AppCompatActivity {
         auth.signInWithEmailAndPassword(email, pass)
                 // If authentication is successful...
                 .addOnSuccessListener(authResult -> {
-                    Toast.makeText(MainActivity.this, "Login Successful", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(MainActivity.this, "Login Successful",
+                            Toast.LENGTH_SHORT).show();
 
                     // Get the current user
                     FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
@@ -528,7 +528,6 @@ public class MainActivity extends AppCompatActivity {
 
                         // Create AddValueEventListener
                         database.addValueEventListener(new ValueEventListener() {
-                            @SuppressLint("NotifyDataSetChanged")
                             // If sensor data has been changed...
                             @Override
                             public void onDataChange(@NonNull DataSnapshot snapshot) {
@@ -568,7 +567,8 @@ public class MainActivity extends AppCompatActivity {
                 })
                 // If authentication fails...
                 .addOnFailureListener(e ->
-                        Toast.makeText(MainActivity.this, "Login Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show()
+                        Toast.makeText(MainActivity.this, "Login Failed: " + e.getMessage(),
+                                Toast.LENGTH_SHORT).show()
                 );
 
         // ----------------------------------------------------------------------------------------
