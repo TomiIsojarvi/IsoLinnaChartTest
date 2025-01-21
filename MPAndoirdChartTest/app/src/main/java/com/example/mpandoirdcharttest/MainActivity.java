@@ -5,6 +5,7 @@ import android.content.Context;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.os.Bundle;
+import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -42,8 +43,9 @@ import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 
 import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
 import java.util.TimeZone;
@@ -70,16 +72,26 @@ class CustomMarkerView extends MarkerView {
     java.text.DateFormat timeFormatter;
 
     //---------------------------------------------------------------------------------------------
-    // Constructor
+    // Constructors
     //---------------------------------------------------------------------------------------------
+    public CustomMarkerView(Context context) {
+        super(context, R.layout.marker_view);
+
+        tvContent = findViewById(R.id.tvContent);
+        tvDate = findViewById(R.id.tvDate);
+        tvTime = findViewById(R.id.tvTime);
+    }
+
     public CustomMarkerView(
             Context context, int layoutResource, ArrayList<Date> dates, String unit,
             java.text.DateFormat dateFormat, java.text.DateFormat timeFormat
     ) {
         super(context, layoutResource);
+
         tvContent = findViewById(R.id.tvContent);
         tvDate = findViewById(R.id.tvDate);
         tvTime = findViewById(R.id.tvTime);
+
         datesList = dates;
         printedUnit = unit;
         dateFormatter = dateFormat;
@@ -127,11 +139,8 @@ public class MainActivity extends AppCompatActivity {
 
     // Charts
     private LineChart tempLineChart;
-    private XAxis tempXAxis;
     private LineChart humLineChart;
-    private XAxis humXAxis;
     private LineChart pressLineChart;
-    private XAxis pressXAxis;
 
     // Used for syncing markers
     private boolean isSyncing = false;
@@ -255,7 +264,7 @@ public class MainActivity extends AppCompatActivity {
     // setUniformYAxisWidth - Makes left Y-axes to be same width
     //---------------------------------------------------------------------------------------------
     private void setUniformYAxisWidth() {
-        float maxLabelWidth = 0;
+        float maxLabelWidth;
 
         // Measure the widest label width across all charts
         String widestLabel = "X.XXX";   // Give some example for the widest label
@@ -274,21 +283,21 @@ public class MainActivity extends AppCompatActivity {
     //---------------------------------------------------------------------------------------------
     private void initAxes() {
         // Temperature
-        tempXAxis = tempLineChart.getXAxis();
+        XAxis tempXAxis = tempLineChart.getXAxis();
         tempXAxis.setAvoidFirstLastClipping(true);
         tempXAxis.setGranularity(1f);
         tempXAxis.setGranularityEnabled(true);
         tempXAxis.setPosition(XAxis.XAxisPosition.BOTTOM);
 
         // Humidity
-        humXAxis = humLineChart.getXAxis();
+        XAxis humXAxis = humLineChart.getXAxis();
         humXAxis.setAvoidFirstLastClipping(true);
         humXAxis.setGranularity(1f);
         humXAxis.setGranularityEnabled(true);
         humXAxis.setPosition(XAxis.XAxisPosition.BOTTOM);
 
         // Pressure
-        pressXAxis = pressLineChart.getXAxis();
+        XAxis pressXAxis = pressLineChart.getXAxis();
         pressXAxis.setAvoidFirstLastClipping(true);
         pressXAxis.setGranularity(1f);
         pressXAxis.setGranularityEnabled(true);
@@ -336,12 +345,12 @@ public class MainActivity extends AppCompatActivity {
 
             // Helper method to check if two Dates are on the same day ----------------------------
             private boolean isSameDay(Date date1, Date date2) {
-                Calendar cal1 = Calendar.getInstance();
-                Calendar cal2 = Calendar.getInstance();
-                cal1.setTime(date1);
-                cal2.setTime(date2);
-                return cal1.get(Calendar.YEAR) == cal2.get(Calendar.YEAR) &&
-                        cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR);
+                if (date1 == null || date2 == null) {
+                    return false;
+                }
+                LocalDate localDate1 = date1.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+                LocalDate localDate2 = date2.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+                return localDate1.isEqual(localDate2);
             }
         };
         // ----------------------------------------------------------------------------------------
@@ -502,76 +511,70 @@ public class MainActivity extends AppCompatActivity {
 
         auth.signInWithEmailAndPassword(email, pass)
                 // If authentication is successful...
-                .addOnSuccessListener(new OnSuccessListener<AuthResult>() {
-                    @Override
-                    public void onSuccess(AuthResult authResult) {
-                        Toast.makeText(MainActivity.this, "Login Successful",
-                                Toast.LENGTH_SHORT).show();
+                .addOnSuccessListener(authResult -> {
+                    Toast.makeText(MainActivity.this, "Login Successful", Toast.LENGTH_SHORT).show();
 
-                        // Get the current user
-                        FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
+                    // Get the current user
+                    FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
 
-                        // Is current user to be found?
-                        if (currentUser != null) {
-                            // Yes...
+                    // Is current user to be found?
+                    if (currentUser != null) {
+                        // Yes...
 
-                            // Get the UserUID
-                            //String userUid = currentUser.getUid();
+                        // Get the UserUID
+                        //String userUid = currentUser.getUid();
 
-                            // Firebase Realtime Database Related ---------------------------------
-                            // Initialize database reference
-                            database = FirebaseDatabase.getInstance().getReference("users")
-                                    .child(userUid).child("devices").child(deviceUuid)
-                                    .child(macAddress);
+                        // Firebase Realtime Database Related ---------------------------------
+                        // Initialize database reference
+                        database = FirebaseDatabase.getInstance().getReference("users")
+                                .child(userUid).child("devices").child(deviceUuid)
+                                .child(macAddress);
 
-                            // Create AddValueEventListener
-                            database.addValueEventListener(new ValueEventListener() {
-                                @SuppressLint("NotifyDataSetChanged")
+                        // Create AddValueEventListener
+                        database.addValueEventListener(new ValueEventListener() {
+                            @SuppressLint("NotifyDataSetChanged")
+                            // If sensor data has been changed...
+                            @Override
+                            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                                sensorData.clear();
+                                dates.clear();
 
-                                // If sensor data has been changed...
-                                @Override
-                                public void onDataChange(@NonNull DataSnapshot snapshot) {
-                                    sensorData.clear();
-                                    dates.clear();
+                                // Update sensor data
+                                for (DataSnapshot sensorSnapshot : snapshot.getChildren()) {
+                                    SensorInfo sensor = sensorSnapshot.getValue(SensorInfo.class);
 
-                                    // Update sensor data
-                                    for (DataSnapshot sensorSnapshot : snapshot.getChildren()) {
-                                        SensorInfo sensor =
-                                                sensorSnapshot.getValue(SensorInfo.class);
+                                    if (sensor != null) {
                                         sensorData.add(sensor);
                                         dates.add(convertUtcToDate(sensor.utc_timestamp));
                                     }
-
-                                    // Draw the charts
-                                    drawCharts();
                                 }
 
-                                // If an error has been raised...
-                                @Override
-                                public void onCancelled(@NonNull DatabaseError error) {
-                                    Toast.makeText(MainActivity.this,
-                                            "Error: " + error.getMessage(),
-                                            Toast.LENGTH_SHORT).show();
-                                }
-                            });
-                            //---------------------------------------------------------------------
+                                // Draw the charts
+                                drawCharts();
+                            }
 
-                        } else {
-                            // No...
-                            Toast.makeText(MainActivity.this,
-                                    "No authenticated user found. Please log in again.",
-                                    Toast.LENGTH_SHORT).show();
-                        }
+                            // If an error has been raised...
+                            @Override
+                            public void onCancelled(@NonNull DatabaseError error) {
+                                Toast.makeText(MainActivity.this,
+                                        "Error: " + error.getMessage(),
+                                        Toast.LENGTH_SHORT).show();
+                            }
+                        });
+                        //---------------------------------------------------------------------
+
+                    } else {
+                        // No...
+                        Toast.makeText(MainActivity.this,
+                                "No authenticated user found. Please log in again.",
+                                Toast.LENGTH_SHORT).show();
                     }
                 })
-                // If authentication is a failure...
-                .addOnFailureListener(new OnFailureListener() {
-                    @Override
-                    public void onFailure(@NonNull Exception e) {
-                        Toast.makeText(MainActivity.this, "Login Failed: " +
-                                e.getMessage(), Toast.LENGTH_SHORT).show();
-                    }
-                });
+                // If authentication fails...
+                .addOnFailureListener(e ->
+                        Toast.makeText(MainActivity.this, "Login Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show()
+                );
+
         // ----------------------------------------------------------------------------------------
     }
 }
